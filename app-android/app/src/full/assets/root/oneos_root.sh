@@ -212,6 +212,7 @@ profile_info() {
         s-ultra-9925) echo "SM-S908 b0s s5e9925 bar" ;;
         s-ultra-8450) echo "SM-S908 b0q SM8450 bar" ;;
         s-ultra-8450-jp) echo "SCG14 SCG14 SM8450 bar" ;;
+        honor-x9c) echo "BRP- HNBRP-Q1 SM6450 bar" ;;
         s-ultra-8850) echo "SM-S948 m3q SM8850 bar" ;;
         s-ultra-8750) echo "SM-S938 pa3q SM8750 bar" ;;
         s-8750) echo "SM-S931 pa1q SM8750 bar" ;;
@@ -567,6 +568,7 @@ profile_set() {
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
         # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
+        "honor-x9c oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;

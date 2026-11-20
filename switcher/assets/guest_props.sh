@@ -526,16 +526,24 @@ add)
     if [ "${ONEOS_GUEST_USB_CONFIG:-1}" = 1 ]; then
         UCK=persist.sys.usb.config
         huv=$(getprop "$UCK")
-        case ",$huv," in
-            *,sec_*)
-                nuv=$(getprop sys.usb.config)
-                case ",$nuv," in ""|*,sec_*|,,) nuv=adb ;; esac
-                if grep -qxF "$UCK" "$HOST" && "$RP" -n "$UCK" "$nuv" 2>/dev/null; then
-                    echo "$UCK=$huv" >> "$OVR"
-                    echo "guest_props: $UCK=$huv overridden to $nuv for the session (AOSP's UsbManager rejects sec_charging)"
-                fi
-                ;;
-        esac
+        # X9c port: MagicOS has "hisuite,mtp,mass_storage,adb"; hisuite and mass_storage are
+        # unknown to AOSP's UsbManager just like sec_charging. Keep only the functions it knows.
+        aosp_usb() {
+            out=
+            for fn in $(echo "$1" | tr ',' ' '); do
+                case "$fn" in
+                    mtp|ptp|rndis|midi|accessory|audio_source|adb|ncm|uvc) out="${out:+$out,}$fn" ;;
+                esac
+            done
+            echo "${out:-adb}"
+        }
+        if [ -n "$huv" ] && [ "$(aosp_usb "$huv")" != "$huv" ]; then
+            nuv=$(aosp_usb "$(getprop sys.usb.config)")
+            if grep -qxF "$UCK" "$HOST" && "$RP" -n "$UCK" "$nuv" 2>/dev/null; then
+                echo "$UCK=$huv" >> "$OVR"
+                echo "guest_props: $UCK=$huv overridden to $nuv for the session (AOSP's UsbManager rejects vendor USB functions)"
+            fi
+        fi
     fi
     # Bluetooth audio offload (run 44: the earbuds connected, audio stayed on the
     # speaker). A2DP keeps One UI's offload: Samsung's QTI HAL turns its offload
