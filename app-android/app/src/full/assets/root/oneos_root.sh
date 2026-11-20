@@ -145,6 +145,7 @@ IMAGES_SDK36="oxygenos16-cph2745"
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # SDK 36 images' sets carry One UI 8.5's codes (host_installd_a16.txt, staged as host_installd.txt;
 # InstalldExpected.SHA256_A16); One UI 8.0's table works with them too (SHA256_A16_ONEUI80).
+INSTALLD_SHA_X9C=e002387707eea95ab280c4ad2587fbd7be90ceac6e7f19f6339044d7492918d4
 INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 # 0.5.28: One UI 9.5's table (switcher/patches/host_installd_95.txt, InstalldExpected.SHA256_95; the S26
@@ -1076,6 +1077,8 @@ image_sdk() { # <image id>
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
+        # X9c port: MagicOS's table, only with a set that reads the phone's codes at runtime.
+        grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_X9C"
     else carried=$INSTALLD_SHA ok=$INSTALLD_SHA
         grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_95"; fi
     [ -f "$f" ] || refuse "host_installd.table missing"

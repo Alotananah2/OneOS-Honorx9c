@@ -160,6 +160,13 @@ object InstalldExpected {
     const val SHA256_A16_ONEUI80 = "9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 
     /**
+     * X9c port: MagicOS 10 on the HONOR X9c (BRP-N21 10.0.0.168, switcher/patches/host_installd_x9c.txt).
+     * Codes 1-50 are AOSP's (33 is createOatDir, not One UI's createOatDirs); 51 on are fsverity and Honor's
+     * own. Only safe with a set that reads the phone's codes at runtime (root checks the guards.txt marker).
+     */
+    const val SHA256_X9C = "e002387707eea95ab280c4ad2587fbd7be90ceac6e7f19f6339044d7492918d4"
+
+    /**
      * One UI 9.5's table (switcher/patches/host_installd_95.txt; the S26 phones updated to One UI 9.5, S948BXXU6ZZKN
      * and S948U1UEU6ZZKN, Probe findings of 2026-11-20): 67 methods, IInstalld renumbered (only 6 of One UI 9.0's 85
      * kept their code). The SDK 37 sets of 0.5.28 on read the phone's codes at runtime (OneOSInstalldCodes), so it is
@@ -171,7 +178,7 @@ object InstalldExpected {
     fun carried(sdk: Int): String? = when (sdk) { 37 -> SHA256; 36 -> SHA256_A16; else -> null }
 
     /** The phone tables an SDK [sdk] image's sets work with: the carried one, and compatible ones. */
-    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256, SHA256_95); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80); else -> emptySet() }
+    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256, SHA256_95); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80, SHA256_X9C); else -> emptySet() }
 
     /** The app asset holding the table for SDK [sdk] (staged as host_installd.txt). */
     fun assetName(sdk: Int): String = if (sdk == 36) "host_installd_a16.txt" else "host_installd.txt"
