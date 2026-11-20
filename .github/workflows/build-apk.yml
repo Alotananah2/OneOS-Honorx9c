@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GH_PACKAGES_USER: ${{ github.actor }}
+      GH_PACKAGES_TOKEN: ${{ secrets.PKG_TOKEN || secrets.GITHUB_TOKEN }}
     defaults:
       run:
         working-directory: app-android
