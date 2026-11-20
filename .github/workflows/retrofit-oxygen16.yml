@@ -1,0 +1,53 @@
+name: Retrofit OxygenOS 16 set for the X9c
+
+# The oxygen16 set's services_patched.jar was built with One UI 8.5's installd codes.
+# The X9c's MagicOS installd numbers its methods differently from code 33 and 51 on,
+# so this rebuilds the jar to read the phone's own codes at runtime (OneOSInstalldCodes)
+# with scripts/retrofit-abi-codes.sh, and publishes it by sha256 in the x9c-sets release.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ x9c-port ]
+    paths: [ '.github/workflows/retrofit-oxygen16.yml', 'scripts/retrofit-abi-codes.sh', 'switcher/patches/guest_installd_abi.py' ]
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Fetch the oxygen16 jar, guards.txt and apktool
+        run: |
+          set -eu
+          mkdir -p old tools
+          base=https://github.com/fahadalijaved/OneOS-files/releases/download/sets-1
+          curl -fsSL -o old/services_patched.jar "$base/a5da6a9d3ad25f8b8c658a9a946360224ba802b432cd65db89186c978b967296"
+          curl -fsSL -o old/guards.txt "$base/086b00c232dff5561db80b34c2b9371eab3cb77a885a9734a58a62e546a137ae"
+          sha256sum old/*
+          echo "a5da6a9d3ad25f8b8c658a9a946360224ba802b432cd65db89186c978b967296  old/services_patched.jar" | sha256sum -c
+          echo "086b00c232dff5561db80b34c2b9371eab3cb77a885a9734a58a62e546a137ae  old/guards.txt" | sha256sum -c
+          url=$(curl -fsSL https://api.github.com/repos/iBotPeaches/Apktool/releases/latest | python3 -c 'import json,sys; print([a["browser_download_url"] for a in json.load(sys.stdin)["assets"] if a["name"].endswith(".jar")][0])')
+          curl -fsSL -o tools/apktool.jar "$url"
+      - name: Retrofit
+        run: |
+          set -eu
+          APKTOOL=$PWD/tools/apktool.jar sh scripts/retrofit-abi-codes.sh old new
+          mkdir -p dist
+          for f in services_patched.jar guards.txt; do
+            s=$(sha256sum "new/$f" | cut -d' ' -f1)
+            cp "new/$f" "dist/$s"
+            echo "$s  $f" | tee -a dist/oxygen16-x9c.sha256
+          done
+          cp new/guards.txt dist/oxygen16-x9c.guards.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: x9c-sets
+          name: OneOS X9c port set files
+          prerelease: true
+          make_latest: false
+          files: dist/*
