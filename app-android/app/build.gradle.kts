@@ -138,6 +138,7 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "boot_status.sh" to File(repoRoot, "switcher/assets/boot_status.sh"),
     "OneOSBootStatus.dex" to File(repoRoot, "switcher/assets/OneOSBootStatus.dex"),
     "oneos_boot_icon.png" to File(repoRoot, "switcher/assets/oneos_boot_icon.png"),
+    "murdhiias_bootanimation.zip" to File(repoRoot, "switcher/assets/murdhiias_bootanimation.zip"),
     "guest_prepare.sh" to File(repoRoot, "switcher/assets/guest_prepare.sh"),
     "guest_start.sh" to File(repoRoot, "switcher/assets/guest_start.sh"),
     "guest_props.sh" to File(repoRoot, "switcher/assets/guest_props.sh"),

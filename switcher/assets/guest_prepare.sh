@@ -3269,6 +3269,19 @@ if [ "${ONEOS_GUEST_APP:-1}" = 1 ]; then
         echo "No guest OneOS APK: Volume Up + Volume Down still return"
     fi
 fi
+# MURDHIIAS (X9c port): the rocket boot animation. In the guest's /oem/media (AOSP's
+# bootanimation reads it), and bound over every bootanimation*.zip of the image's media
+# folders, which bootanimation reads before /oem (product's, OPPO's my_* ones).
+# ONEOS_GUEST_MURDHIIAS_BOOTANIM=0 keeps the image's own.
+if [ "${ONEOS_GUEST_MURDHIIAS_BOOTANIM:-1}" = 1 ] && [ -s "$STAGE/murdhiias_bootanimation.zip" ]; then
+    mkdir -p "$STAGE/oem/media" && cp "$STAGE/murdhiias_bootanimation.zip" "$STAGE/oem/media/bootanimation.zip" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/media" && chmod 644 "$STAGE/oem/media/bootanimation.zip" &&
+        OEM_FILES="$OEM_FILES media/bootanimation.zip"
+    for f in $(find "$ROOTFS/product/media" "$ROOTFS/system/media" "$ROOTFS/system_ext/media" "$ROOTFS"/my_*/media -maxdepth 3 -name 'bootanimation*.zip' 2>/dev/null); do
+        $BB mount --bind "$STAGE/murdhiias_bootanimation.zip" "$f" 2>/dev/null &&
+            echo "MURDHIIAS boot animation bound over ${f#$ROOTFS}"
+    done
+fi
 if [ -n "$OEM_FILES" ]; then
     # A stage copy, not a bind of host data: safe to label like a system file.
     $BB chcon -h -R u:object_r:system_file:s0 "$STAGE/oem" 2>/dev/null || true
