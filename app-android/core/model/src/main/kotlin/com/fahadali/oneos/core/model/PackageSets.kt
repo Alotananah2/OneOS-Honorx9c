@@ -777,6 +777,7 @@ object PackageSets {
         sourceDir = "out/overlays_oxygen16_r3",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
             PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),

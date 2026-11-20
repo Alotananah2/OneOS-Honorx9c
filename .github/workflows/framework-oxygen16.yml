@@ -1,0 +1,99 @@
+name: OxygenOS 16 framework for the X9c
+
+# The guest's framework.jar holds android.apex.IApexService$Stub$Proxy. MagicOS's apexd
+# has Honor's HEP methods inserted, so the guest's codes must be the host's
+# (patches/guest_apex_abi.py, switcher/patches/host_apex_x9c.txt). This takes framework.jar
+# out of the OxygenOS 16 image, patches it, publishes framework_patched.jar in x9c-sets,
+# adds it to the app's oxygen16 set and starts the APK build.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ x9c-port ]
+    paths: [ '.github/workflows/framework-oxygen16.yml', 'scripts/patch-apex-abi.sh', 'switcher/patches/guest_apex_abi.py', 'switcher/patches/host_apex_x9c.txt' ]
+
+jobs:
+  framework:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Room for the image
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
+          df -h / /mnt
+      - name: OxygenOS 16 image -> framework.jar
+        run: |
+          set -eu
+          W=/mnt/img; sudo mkdir -p $W; sudo chown $(id -u) $W
+          curl -fL --retry 10 --retry-all-errors -o $W/img.gz "https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_OxygenOS16_CPH2745.img.gz/download"
+          echo "21e9b1fe37adb0ce4820610f017cdcce6373457c435aa242262b2e4ed214c5f0  $W/img.gz" | sha256sum -c
+          gunzip -c $W/img.gz > $W/system.raw
+          rm -f $W/img.gz
+          for p in /system/framework/framework.jar /framework/framework.jar; do
+            debugfs -R "dump -p $p $PWD/framework.jar" $W/system.raw 2>/dev/null || true
+            [ -s framework.jar ] && { echo "framework.jar from $p"; break; }
+          done
+          [ -s framework.jar ] || { echo "::error::no framework.jar in the image"; exit 1; }
+          sha256sum framework.jar; ls -l framework.jar
+          rm -f $W/system.raw
+      - name: Patch
+        run: |
+          set -eu
+          url=$(curl -fsSL https://api.github.com/repos/iBotPeaches/Apktool/releases/latest | python3 -c 'import json,sys; print([a["browser_download_url"] for a in json.load(sys.stdin)["assets"] if a["name"].endswith(".jar")][0])')
+          curl -fsSL -o apktool.jar "$url"
+          if ! APKTOOL=$PWD/apktool.jar sh scripts/patch-apex-abi.sh framework.jar switcher/patches/host_apex_x9c.txt framework_patched.jar > step.log 2>&1; then
+            cat step.log; tail -n 15 step.log | while IFS= read -r l; do echo "::error::$l"; done; exit 1
+          fi
+          cat step.log
+      - name: Set files
+        run: |
+          set -eu
+          pk=app-android/packages
+          F=$(sha256sum framework_patched.jar | cut -d' ' -f1)
+          MARK="# X9c port: IApexService calls on MagicOS's codes in framework_patched.jar (host_apex_x9c.txt, patches/guest_apex_abi.py)"
+          grep -v '  framework_patched.jar$' $pk/oxygen16.guards.txt | grep -vxF "$MARK" | awk -v mark="$MARK" 'NR == 1 { print; print mark; next } { print }' > guards.txt
+          echo "$F  framework_patched.jar" >> guards.txt
+          G=$(sha256sum guards.txt | cut -d' ' -f1)
+          mkdir -p dist && cp framework_patched.jar dist/$F && cp guards.txt dist/$G
+          python3 - "$F" "$G" "$(stat -c %s framework_patched.jar)" "$(stat -c %s guards.txt)" <<'PY'
+          import re, sys
+          F, G, fs, gs = sys.argv[1:5]
+          pk = "app-android/packages"
+          lst = [l for l in open(f"{pk}/oxygen16.sha256").read().splitlines() if not l.endswith("  framework_patched.jar")]
+          out = []
+          for l in lst:
+              out.append(f"{G}  guards.txt" if l.endswith("  guards.txt") and re.match(r"^[0-9a-f]{64}  guards\.txt$", l) else l)
+          out.append(f"{F}  framework_patched.jar")
+          open(f"{pk}/oxygen16.sha256", "w").write("\n".join(out) + "\n")
+          open(f"{pk}/oxygen16.guards.txt", "w").write(open("guards.txt").read())
+          for name, rows in (("remote.txt", [(F, "gh:Alotananah2/OneOS-Honorx9c:x9c-sets"), (G, "gh:Alotananah2/OneOS-Honorx9c:x9c-sets")]),
+                             ("sizes.txt", [(F, fs), (G, gs)])):
+              cur = open(f"{pk}/{name}").read().rstrip("\n").split("\n")
+              for h, v in rows:
+                  if not any(c.startswith(h + " ") for c in cur):
+                      cur.append(f"{h} {v}")
+              open(f"{pk}/{name}", "w").write("\n".join(cur) + "\n")
+          PY
+          git diff --stat
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: x9c-sets
+          name: OneOS X9c port set files
+          prerelease: true
+          make_latest: false
+          files: dist/*
+      - name: Commit and rebuild the app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-android/packages
+          git diff --cached --quiet || { git commit -m "oxygen16 set: framework_patched.jar (IApexService on MagicOS's codes), framework run ${GITHUB_RUN_NUMBER}"; git pull --rebase origin x9c-port; git push origin HEAD:x9c-port; }
+          gh workflow run build-apk.yml --ref x9c-port
