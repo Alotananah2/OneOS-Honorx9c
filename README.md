@@ -7,9 +7,9 @@
 </p>
 
 <p align="center">
-  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-5B3FCB?style=flat-square&labelColor=2B3445">
+  <img alt="Status: IN TESTING " src="https://img.shields.io/badge/status-experimental-5B3FCB?style=flat-square&labelColor=2B3445">
   <img alt="Android 17" src="https://img.shields.io/badge/Android-17-1C5FD6?style=flat-square&labelColor=2B3445">
-  <img alt="One UI 9" src="https://img.shields.io/badge/One%20UI-9-1C5FD6?style=flat-square&labelColor=2B3445">
+  <img alt="HonorX9C" src="https://img.shields.io/badge/One%20UI-9-1C5FD6?style=flat-square&labelColor=2B3445">
   <img alt="Root: KernelSU" src="https://img.shields.io/badge/root-KernelSU-1C5FD6?style=flat-square&labelColor=2B3445">
   <a href="https://fahadalijaved.github.io/OneOS/" target="_blank" style="text-decoration: none;">
     <img alt="Website: OneOS" src="https://img.shields.io/badge/Website-OneOS-10B981?style=flat-square&labelColor=2B3445">
