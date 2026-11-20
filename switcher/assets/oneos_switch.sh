@@ -3877,7 +3877,7 @@ if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
     echo "=== $(date '+%F %T') session $(cat /proc/sys/kernel/random/boot_id 2>/dev/null) ===" >> "$RT"
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        timeout 1500 logcat -b all -v threadtime -T 1 2>/dev/null | grep --line-buffered -iE 'powerctl|reboot|shutdown|zrhung|hung|watchdog|hiview|bootdetect|bootfail|fatal|panic' >> '$RT'
+        timeout 1500 logcat -b all -v threadtime -T 1 2>/dev/null | grep --line-buffered -iE 'powerctl|reboot|shutdown|zrhung|hung|watchdog|hiview|bootdetect|bootfail|fatal|panic| E AndroidRuntime' >> '$RT'
     " </dev/null >/dev/null 2>&1 &
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null

@@ -295,6 +295,17 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
+# X9c port: MagicOS names its Qualcomm composer something else (display-hal-1-2 and the like, a
+# HIDL composer): the running init service whose pid is the composer binary's.
+if [ -z "$COMPOSER_SVC" ]; then
+    cpid=$("$BB" pidof vendor.qti.hardware.display.composer-service 2>/dev/null | cut -d' ' -f1)
+    [ -n "$cpid" ] || cpid=$("$BB" pidof android.hardware.graphics.composer@2.4-service android.hardware.graphics.composer@2.3-service android.hardware.graphics.composer@2.2-service android.hardware.graphics.composer@2.1-service 2>/dev/null | cut -d' ' -f1)
+    if [ -n "$cpid" ]; then
+        for s in $(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p'); do
+            [ "$(getprop init.svc_debug_pid.$s)" = "$cpid" ] && { COMPOSER_SVC=$s; break; }
+        done
+    fi
+fi
 echo "[Pivoted Root] Restarting the vendor display composer (${COMPOSER_SVC:-none found})..."
 # Stopped and started, not ctl.restart: init runs a service's onrestart
 # commands only when it restarts it, and the composer's "onrestart restart
