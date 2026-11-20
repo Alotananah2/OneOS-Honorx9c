@@ -37,8 +37,17 @@ jobs:
       - name: Retrofit
         run: |
           set -eu
-          APKTOOL=$PWD/tools/apktool.jar sh scripts/retrofit-abi-codes.sh "$PWD/old" "$PWD/new"
-          APKTOOL=$PWD/tools/apktool.jar sh scripts/patch-apex-abi.sh "$PWD/new" "$PWD/switcher/patches/host_apex_x9c.txt" "$PWD/new2"
+          run_logged() {
+            if ! "$@" > step.log 2>&1; then
+              cat step.log
+              tail -n 15 step.log | while IFS= read -r l; do echo "::error::$l"; done
+              exit 1
+            fi
+            cat step.log
+          }
+          export APKTOOL=$PWD/tools/apktool.jar
+          run_logged sh scripts/retrofit-abi-codes.sh "$PWD/old" "$PWD/new"
+          run_logged sh scripts/patch-apex-abi.sh "$PWD/new" "$PWD/switcher/patches/host_apex_x9c.txt" "$PWD/new2"
           mkdir -p dist
           for f in services_patched.jar guards.txt; do
             s=$(sha256sum "new2/$f" | cut -d' ' -f1)
