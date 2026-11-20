@@ -971,7 +971,9 @@ done
 if [ -z "$COMPOSER_SVC" ]; then
     for rc in /vendor/etc/init/*.rc /odm/etc/init/*.rc; do
         cs=$("$BB" sed -n 's/^service \([^ ]*\) .*\/bin\/hw\/[^ ]*composer[^ ]*.*/\1/p' "$rc" 2>/dev/null | head -n 1)
-        [ -n "$cs" ] && [ -n "$(getprop init.svc.$cs)" ] && { COMPOSER_SVC=$cs; break; }
+        cb=$("$BB" sed -n 's/^service [^ ]* \([^ ]*\/bin\/hw\/[^ ]*composer[^ ]*\).*/\1/p' "$rc" 2>/dev/null | head -n 1)
+        # MagicOS publishes no init.svc.<name> for it (11-20, X9c): its running binary counts.
+        [ -n "$cs" ] && { [ -n "$(getprop init.svc.$cs)" ] || "$BB" pidof "${cb##*/}" >/dev/null 2>&1; } && { COMPOSER_SVC=$cs; break; }
     done
 fi
 [ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
