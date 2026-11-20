@@ -3832,6 +3832,27 @@ $BB sh -c "
     done
 " </dev/null >/dev/null 2>&1 &
 echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
+# X9c port: the first X9c session (2026-11-20) ended in a plain "reboot" 215 s in, with no
+# OneOS return logged and nothing in pstore. Record who asks for a reboot or shutdown, from the
+# host's logs and the kernel's, into a file that survives it (reboot_trace.log).
+if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+    RT="$STAGE/reboot_trace.log"
+    echo "=== $(date '+%F %T') session $(cat /proc/sys/kernel/random/boot_id 2>/dev/null) ===" >> "$RT"
+    $BB sh -c "
+        echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
+        timeout 1500 logcat -b all -v threadtime -T 1 2>/dev/null | grep --line-buffered -iE 'powerctl|reboot|shutdown|zrhung|hung|watchdog|hiview|bootdetect|bootfail|fatal|panic' >> '$RT'
+    " </dev/null >/dev/null 2>&1 &
+    $BB sh -c "
+        echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
+        timeout 1500 $BB dmesg -w 2>/dev/null | grep --line-buffered -iE 'reboot|restart|shutdown|watchdog|wdog|hung|panic|oom|zrhung|bug:' | sed 's/^/kmsg /' >> '$RT'
+    " </dev/null >/dev/null 2>&1 &
+    # Plus a full snapshot of the last 2 minutes of host logs every 30 s, the newest kept.
+    $BB sh -c "
+        echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
+        i=0; while [ \$i -lt 50 ]; do i=\$((i + 1)); logcat -b all -d -v threadtime -t 4000 > '$STAGE/host_tail.log.tmp' 2>/dev/null && mv -f '$STAGE/host_tail.log.tmp' '$STAGE/host_tail.log'; $BB dmesg 2>/dev/null | tail -n 1500 > '$STAGE/kmsg_tail.log'; sleep 30; done
+    " </dev/null >/dev/null 2>&1 &
+    echo "Reboot trace: on (X9c port; $RT, host_tail.log, kmsg_tail.log)"
+fi
 
 # Heat cap (S25 Ultra af6c2b17; owner 2026-10-27: cap only when hot). One UI's
 # heat control (SSRM) stops with One UI's system_server, and nothing in the
