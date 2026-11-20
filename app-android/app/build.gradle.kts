@@ -573,6 +573,17 @@ android {
     }
 
     signingConfigs {
+        // X9c port: every CI debug build signed with one key (.github/keys), so a new build
+        // installs over the last one and keeps its root grant.
+        val portKey = rootProject.file("../.github/keys/debug.keystore")
+        if (portKey.isFile) {
+            getByName("debug") {
+                storeFile = portKey
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (releaseKeys != null) {
             create("release") {
                 storeFile = file(releaseKeys.getProperty("storeFile"))
