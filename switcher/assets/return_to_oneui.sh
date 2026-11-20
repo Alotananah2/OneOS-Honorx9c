@@ -228,6 +228,8 @@ else sm=$(dmesg 2>/dev/null | grep -E 'servicemanager|SELinux: No match' | tail 
 echo "service_contexts catch-all lines in One UI's plat_service_contexts: $(grep -c '^\*' /system/etc/selinux/plat_service_contexts 2>/dev/null)"
 
 echo "=== [1/4] $(date +%T) Terminating Container Supervision & Zygote ==="
+# X9c port: the hungtask feeder (oneos_switch.sh) stops 2 min from now, MagicOS kicking again by then.
+[ -w /sys/kernel/hungtask/vm_heart ] && echo $(( $(date +%s) + 120 )) > "$S/hungtask_stop_at" 2>/dev/null
 # A screen recording (guest_start.sh) is finalised on SIGINT; SIGKILL would
 # leave an unplayable segment. Nothing on the host is called screenrecord.
 # The flag stops guest_start.sh's segment loop first: in run 31 it started

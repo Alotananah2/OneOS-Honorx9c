@@ -1500,6 +1500,32 @@ sleep 1
 SOFTDOG_V=0
 if e=$(printf V 2>&1 > /dev/watchdog); then echo "Softdog: /dev/watchdog closed with V (One UI's system_server stopped)"; SOFTDOG_V=1
 else echo "Softdog: /dev/watchdog not written ($e)"; fi
+# X9c port: Honor's hung-task watchdog (/sys/kernel/hungtask). MagicOS's system_server writes
+# "kick" to vm_heart (ZRHung's watchdogKick); with it stopped nothing did, and with
+# ctl_hung_task_panic on the kernel panicked 3.5 min into the first X9c session
+# (reliability/faultdetect: reason [userpet], AP_S_PANIC). OneOS kicks it for the session and
+# turns the panic off; both go back 2 min after return_to_oneui.sh starts (hungtask_stop_at),
+# when MagicOS's own system_server kicks again.
+HT=/sys/kernel/hungtask
+if [ -w "$HT/vm_heart" ]; then
+    rm -f "$STAGE/hungtask_stop_at"
+    htp=$(cat "$HT/ctl_hung_task_panic" 2>/dev/null)
+    echo kick > "$HT/vm_heart" 2>/dev/null
+    [ "$htp" = on ] && echo off > "$HT/ctl_hung_task_panic" 2>/dev/null
+    echo "Hungtask: vm_heart kicked every 10 s for the session; ctl_hung_task_panic $(cat "$HT/ctl_hung_task_panic" 2>/dev/null) (was ${htp:-?})"
+    $BB sh -c "
+        echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
+        n=0
+        while [ \$n -lt 8640 ]; do
+            echo kick > $HT/vm_heart 2>/dev/null
+            sa=\$(cat $STAGE/hungtask_stop_at 2>/dev/null)
+            if [ -n \"\$sa\" ] && [ \$(date +%s) -ge \$sa ]; then break; fi
+            n=\$((n + 1)); sleep 10
+        done
+        [ '$htp' = on ] && echo on > $HT/ctl_hung_task_panic 2>/dev/null
+        echo \"\$(date +%T) hungtask feeder stopped after \$n kicks; ctl_hung_task_panic \$(cat $HT/ctl_hung_task_panic 2>/dev/null)\"
+    " </dev/null >>"$STAGE/hungtask_feeder.log" 2>&1 &
+fi
 # The Galaxy A16 4G (MediaTek, 0.4.55 64e7f7da) panicked about 100 s into every
 # session (softdog_fire, KP): there Samsung's softdog is /dev/softdog, a link to
 # /dev/watchdog1, and /dev/watchdog is another device, which took the "V" above,
