@@ -2,6 +2,15 @@ package com.murdhiias.launcher;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.WallpaperManager;
+import android.appwidget.AppWidgetHost;
+import android.appwidget.AppWidgetHostView;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -63,6 +72,34 @@ public class MainActivity extends Activity {
     private LinearLayout home;
     private SplitClock clock;
     private ImageView photo;
+    private LinearLayout widgets;
+    private AppWidgetHost widgetHost;
+    private AppWidgetManager widgetManager;
+    private static final int REQ_PICK_WIDGET = 8;
+    private static final int REQ_BIND_WIDGET = 9;
+    private static final int REQ_CONFIG_WIDGET = 10;
+    private int pendingWidget = -1;
+    private SensorManager sensors;
+    private float tiltX = 0.5f, tiltY = 0.5f;
+    private final SensorEventListener tilt = new SensorEventListener() {
+        @Override public void onSensorChanged(SensorEvent e) {
+            // 3D tilt: the wallpaper (and the home screen, a little less) follows the phone's tilt.
+            float gx = e.values[0], gy = e.values[1];
+            float tx = 0.5f - Math.max(-1f, Math.min(1f, gx / 6f)) * 0.5f;
+            float ty = 0.5f + Math.max(-1f, Math.min(1f, (gy - 6f) / 6f)) * 0.5f;
+            tiltX += (tx - tiltX) * 0.12f; tiltY += (ty - tiltY) * 0.12f;
+            try {
+                WallpaperManager wm = WallpaperManager.getInstance(MainActivity.this);
+                wm.setWallpaperOffsetSteps(0.5f, 0.5f);
+                wm.setWallpaperOffsets(root.getWindowToken(), tiltX, tiltY);
+            } catch (Throwable ignored) { }
+            if (home != null) {
+                home.setTranslationX((tiltX - 0.5f) * -px(14));
+                home.setTranslationY((tiltY - 0.5f) * -px(10));
+            }
+        }
+        @Override public void onAccuracyChanged(Sensor s, int a) { }
+    };
     private GridLayout homeGrid;
     private LinearLayout dock;
     private FrameLayout drawer;
@@ -85,6 +122,9 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        widgetManager = AppWidgetManager.getInstance(this);
+        widgetHost = new AppWidgetHost(this, 1024);
+        sensors = (SensorManager) getSystemService(SENSOR_SERVICE);
         buildUi();
         setContentView(root);
         IntentFilter t = new IntentFilter();
@@ -109,8 +149,37 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        try { widgetHost.startListening(); } catch (Throwable ignored) { }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try { widgetHost.stopListening(); } catch (Throwable ignored) { }
+    }
+
+    private void stopTilt() { if (sensors != null) sensors.unregisterListener(tilt); }
+
+    private void startTilt() {
+        if (sensors != null && prefs.getBoolean("tilt", true)) {
+            Sensor g = sensors.getDefaultSensor(Sensor.TYPE_GRAVITY);
+            if (g == null) g = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            if (g != null) sensors.registerListener(tilt, g, SensorManager.SENSOR_DELAY_UI);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopTilt();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        startTilt();
         if (clock != null) clock.invalidate();
     }
 
@@ -167,6 +236,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, px(170));
         plp.topMargin = px(14);
         home.addView(photo, plp);
+
+        widgets = new LinearLayout(this);
+        widgets.setOrientation(LinearLayout.VERTICAL);
+        home.addView(widgets, new LinearLayout.LayoutParams(-1, -2));
 
         homeGrid = new GridLayout(this);
         homeGrid.setColumnCount(COLS);
@@ -310,7 +383,68 @@ public class MainActivity extends Activity {
 
     private void save(String name, List<String> l) { prefs.edit().putString(name, String.join(",", l)).apply(); }
 
+    private void fillWidgets() {
+        widgets.removeAllViews();
+        int w = getResources().getDisplayMetrics().widthPixels - px(36);
+        for (String sid : list("widgets")) {
+            int id;
+            try { id = Integer.parseInt(sid); } catch (NumberFormatException e) { continue; }
+            AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(id);
+            if (info == null) continue;
+            AppWidgetHostView v = widgetHost.createView(this, id, info);
+            v.setAppWidget(id, info);
+            v.setPadding(0, 0, 0, 0);
+            int h = Math.max(px(info.minHeight > 0 ? 0 : 72), info.minHeight);
+            if (h < px(48)) h = px(72);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, h);
+            lp.topMargin = px(12);
+            final int fid = id;
+            v.setOnLongClickListener(x -> { widgetMenu(fid, info); return true; });
+            widgets.addView(v, lp);
+        }
+    }
+
+    private void widgetMenu(int id, AppWidgetProviderInfo info) {
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(info.loadLabel(getPackageManager()))
+                .setItems(new String[]{"Remove widget"}, (d, w) -> {
+                    List<String> l = list("widgets"); l.remove(String.valueOf(id)); save("widgets", l);
+                    try { widgetHost.deleteAppWidgetId(id); } catch (Throwable ignored) { }
+                    fillWidgets();
+                }).show();
+    }
+
+    private void pickWidget() {
+        pendingWidget = widgetHost.allocateAppWidgetId();
+        Intent pick = new Intent(AppWidgetManager.ACTION_APPWIDGET_PICK);
+        pick.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidget);
+        try { startActivityForResult(pick, REQ_PICK_WIDGET); }
+        catch (Throwable t) { widgetHost.deleteAppWidgetId(pendingWidget); pendingWidget = -1; }
+    }
+
+    private void widgetPicked(int id) {
+        AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(id);
+        if (info == null) { widgetHost.deleteAppWidgetId(id); return; }
+        if (info.configure != null) {
+            try {
+                widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQ_CONFIG_WIDGET, null);
+                pendingWidget = id;
+                return;
+            } catch (Throwable ignored) { }
+        }
+        addWidget(id);
+    }
+
+    private void addWidget(int id) {
+        List<String> l = list("widgets");
+        if (!l.contains(String.valueOf(id))) l.add(String.valueOf(id));
+        save("widgets", l);
+        pendingWidget = -1;
+        fillWidgets();
+    }
+
     private void fillHome() {
+        fillWidgets();
         homeGrid.removeAllViews();
         int cell = (getResources().getDisplayMetrics().widthPixels - px(36)) / COLS;
         for (String k : list("pins")) {
@@ -435,21 +569,28 @@ public class MainActivity extends Activity {
 
     private void homeMenu() {
         if (drawer.getVisibility() == View.VISIBLE) return;
-        String[] items = {"Change wallpaper", "Choose photo widget", "Remove photo widget", "All apps"};
+        String[] items = {"Add widget (Claude, Google search, ...)", "Change wallpaper", "Choose photo widget", "Remove photo widget",
+                prefs.getBoolean("tilt", true) ? "Turn 3D tilt off" : "Turn 3D tilt on", "All apps"};
         new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("MURDHIIAS")
                 .setItems(items, (dl, which) -> {
-                    if (which == 0) {
+                    if (which == 0) pickWidget();
+                    else if (which == 1) {
                         try { startActivity(Intent.createChooser(new Intent(Intent.ACTION_SET_WALLPAPER), "Wallpaper")); }
                         catch (Throwable ignored) { }
-                    } else if (which == 1) {
+                    } else if (which == 2) {
                         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                         i.addCategory(Intent.CATEGORY_OPENABLE);
                         i.setType("image/*");
                         startActivityForResult(i, REQ_PHOTO);
-                    } else if (which == 2) {
+                    } else if (which == 3) {
                         prefs.edit().remove("photo").apply();
                         reload();
+                    } else if (which == 4) {
+                        boolean on = !prefs.getBoolean("tilt", true);
+                        prefs.edit().putBoolean("tilt", on).apply();
+                        stopTilt(); startTilt();
+                        if (!on) { home.setTranslationX(0); home.setTranslationY(0); }
                     } else openDrawer();
                 }).show();
     }
@@ -457,6 +598,34 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == REQ_PICK_WIDGET) {
+            int id = data != null ? data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidget) : pendingWidget;
+            if (res != RESULT_OK) { if (id >= 0) widgetHost.deleteAppWidgetId(id); pendingWidget = -1; return; }
+            AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(id);
+            if (info == null && data != null) {
+                ComponentName cn = data.getParcelableExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER);
+                if (cn != null && !widgetManager.bindAppWidgetIdIfAllowed(id, cn)) {
+                    Intent b = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                    b.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+                    b.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, cn);
+                    pendingWidget = id;
+                    startActivityForResult(b, REQ_BIND_WIDGET);
+                    return;
+                }
+            }
+            widgetPicked(id);
+            return;
+        }
+        if (req == REQ_BIND_WIDGET) {
+            if (res == RESULT_OK && pendingWidget >= 0) widgetPicked(pendingWidget);
+            else if (pendingWidget >= 0) { widgetHost.deleteAppWidgetId(pendingWidget); pendingWidget = -1; }
+            return;
+        }
+        if (req == REQ_CONFIG_WIDGET) {
+            if (res == RESULT_OK && pendingWidget >= 0) addWidget(pendingWidget);
+            else if (pendingWidget >= 0) { widgetHost.deleteAppWidgetId(pendingWidget); pendingWidget = -1; }
+            return;
+        }
         if (req == REQ_PHOTO && res == RESULT_OK && data != null && data.getData() != null) {
             Uri u = data.getData();
             try { getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
