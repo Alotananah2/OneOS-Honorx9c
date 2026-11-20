@@ -545,6 +545,17 @@ add)
             fi
         fi
     fi
+    # X9c port: with the Wi-Fi features hidden (guest_prepare.sh, ONEOS_GUEST_X9C_NO_WIFI) the
+    # guest's DisplayManagerService died registering its Wi-Fi display adapter ("WiFi display
+    # was requested, but there is no WiFi Direct feature", 11-20 23:23): off for the session.
+    if [ "${ONEOS_GUEST_X9C_NO_WIFI:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+        WFK=persist.debug.wfd.enable
+        wfv=$(getprop "$WFK")
+        if "$RP" -n "$WFK" 0 2>/dev/null; then
+            echo "$WFK=$wfv" >> "$OVR"
+            echo "guest_props: $WFK=0 for the session (no Wi-Fi display without the Wi-Fi features; was ${wfv:-unset})"
+        fi
+    fi
     # Bluetooth audio offload (run 44: the earbuds connected, audio stayed on the
     # speaker). A2DP keeps One UI's offload: Samsung's QTI HAL turns its offload
     # path on from the vendor parameter l_a2dp_format, which guest_start.sh now
