@@ -1506,8 +1506,18 @@ else echo "Softdog: /dev/watchdog not written ($e)"; fi
 # (reliability/faultdetect: reason [userpet], AP_S_PANIC). OneOS kicks it for the session and
 # turns the panic off; both go back 2 min after return_to_oneui.sh starts (hungtask_stop_at),
 # when MagicOS's own system_server kicks again.
+# Second Honor watchdog (the second X9c session, 19:12:31, again [userpet] with hungtask
+# already fed): the hangdetect_userpet module, petted by MagicOS's system_server through
+# /dev/detect. /proc/hangdetect/userpet_disable turns it off; back to its value with the
+# hungtask feeder below.
+UPD=/proc/hangdetect/userpet_disable
+upd_was=$(cat "$UPD" 2>/dev/null)
+if [ -n "$upd_was" ]; then
+    echo 1 > "$UPD" 2>/dev/null
+    echo "Hangdetect userpet: disabled for the session ($(cat "$UPD" 2>/dev/null), was $upd_was)"
+fi
 HT=/sys/kernel/hungtask
-if [ -w "$HT/vm_heart" ]; then
+if [ -w "$HT/vm_heart" ] || [ -n "$upd_was" ]; then
     rm -f "$STAGE/hungtask_stop_at"
     htp=$(cat "$HT/ctl_hung_task_panic" 2>/dev/null)
     echo kick > "$HT/vm_heart" 2>/dev/null
@@ -1523,7 +1533,8 @@ if [ -w "$HT/vm_heart" ]; then
             n=\$((n + 1)); sleep 10
         done
         [ '$htp' = on ] && echo on > $HT/ctl_hung_task_panic 2>/dev/null
-        echo \"\$(date +%T) hungtask feeder stopped after \$n kicks; ctl_hung_task_panic \$(cat $HT/ctl_hung_task_panic 2>/dev/null)\"
+        [ -n '$upd_was' ] && echo '$upd_was' > $UPD 2>/dev/null
+        echo \"\$(date +%T) hungtask feeder stopped after \$n kicks; ctl_hung_task_panic \$(cat $HT/ctl_hung_task_panic 2>/dev/null); userpet_disable \$(cat $UPD 2>/dev/null)\"
     " </dev/null >>"$STAGE/hungtask_feeder.log" 2>&1 &
 fi
 # The Galaxy A16 4G (MediaTek, 0.4.55 64e7f7da) panicked about 100 s into every
@@ -3875,7 +3886,7 @@ if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
     # Plus a full snapshot of the last 2 minutes of host logs every 30 s, the newest kept.
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        i=0; while [ \$i -lt 50 ]; do i=\$((i + 1)); logcat -b all -d -v threadtime -t 4000 > '$STAGE/host_tail.log.tmp' 2>/dev/null && mv -f '$STAGE/host_tail.log.tmp' '$STAGE/host_tail.log'; $BB dmesg 2>/dev/null | tail -n 1500 > '$STAGE/kmsg_tail.log'; sleep 30; done
+        i=0; while [ \$i -lt 100 ]; do i=\$((i + 1)); logcat -b all -d -v threadtime -t 4000 > '$STAGE/host_tail.log.tmp' 2>/dev/null && mv -f '$STAGE/host_tail.log.tmp' '$STAGE/host_tail.log'; $BB dmesg 2>/dev/null | tail -n 1500 > '$STAGE/kmsg_tail.log'; sync; sleep 15; done
     " </dev/null >/dev/null 2>&1 &
     echo "Reboot trace: on (X9c port; $RT, host_tail.log, kmsg_tail.log)"
 fi
