@@ -36,7 +36,7 @@ jobs:
       - name: Retrofit
         run: |
           set -eu
-          APKTOOL=$PWD/tools/apktool.jar sh scripts/retrofit-abi-codes.sh old new
+          APKTOOL=$PWD/tools/apktool.jar sh scripts/retrofit-abi-codes.sh "$PWD/old" "$PWD/new"
           mkdir -p dist
           for f in services_patched.jar guards.txt; do
             s=$(sha256sum "new/$f" | cut -d' ' -f1)
