@@ -1020,7 +1020,17 @@ for s in $AHAL; do setprop ctl.stop $s; done
 for s in $AHAL; do setprop ctl.start $s; done
 rm -f $S/host_audio_hal_svcs
 setprop ctl.start audioserver
-wait_found media.audio_policy 20 || failsafe "One UI's audioserver did not register"
+# X9c port: MagicOS's audioserver did not register within 20 s at the in-place return
+# (11-20 23:25:49, a failsafe reboot). Once more with the audio HAL and audioserver
+# restarted, waiting longer, before giving up.
+if ! wait_found media.audio_policy 20; then
+    say "audio: media.audio_policy not registered after 20 s; restarting audioserver${AHAL:+ and $AHAL} once more"
+    setprop ctl.stop audioserver
+    for s in $AHAL; do setprop ctl.restart $s; done
+    sleep 2
+    setprop ctl.start audioserver
+    wait_found media.audio_policy 45 || failsafe "One UI's audioserver did not register"
+fi
 # The camera HALs first (0.4.38): the guest's Samsung Camera drove them for the
 # whole session and the camera worker set their fold posture; One UI's camera
 # glitched after a return until a reboot (F8U test9), which restarts them too.
