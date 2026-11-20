@@ -8,13 +8,14 @@ on:
   workflow_dispatch:
   push:
     branches: [ x9c-port ]
-    paths: [ '.github/workflows/retrofit-oxygen16.yml', 'scripts/retrofit-abi-codes.sh', 'switcher/patches/guest_installd_abi.py' ]
+    paths: [ '.github/workflows/retrofit-oxygen16.yml', 'scripts/retrofit-abi-codes.sh', 'scripts/patch-apex-abi.sh', 'switcher/patches/guest_installd_abi.py', 'switcher/patches/guest_apex_abi.py', 'switcher/patches/host_apex_x9c.txt' ]
 
 jobs:
   retrofit:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -37,13 +38,14 @@ jobs:
         run: |
           set -eu
           APKTOOL=$PWD/tools/apktool.jar sh scripts/retrofit-abi-codes.sh "$PWD/old" "$PWD/new"
+          APKTOOL=$PWD/tools/apktool.jar sh scripts/patch-apex-abi.sh "$PWD/new" "$PWD/switcher/patches/host_apex_x9c.txt" "$PWD/new2"
           mkdir -p dist
           for f in services_patched.jar guards.txt; do
-            s=$(sha256sum "new/$f" | cut -d' ' -f1)
-            cp "new/$f" "dist/$s"
+            s=$(sha256sum "new2/$f" | cut -d' ' -f1)
+            cp "new2/$f" "dist/$s"
             echo "$s  $f" | tee -a dist/oxygen16-x9c.sha256
           done
-          cp new/guards.txt dist/oxygen16-x9c.guards.txt
+          cp new2/guards.txt dist/oxygen16-x9c.guards.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: x9c-sets
@@ -51,3 +53,39 @@ jobs:
           prerelease: true
           make_latest: false
           files: dist/*
+      - name: Point the app's oxygen16 set at the new files
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import os, re
+          pk = "app-android/packages"
+          new = {}
+          for l in open("dist/oxygen16-x9c.sha256"):
+              s, n = l.split()
+              new[n] = s
+          files = {n: os.path.getsize(f"dist/{s}") for n, s in new.items()}
+          lst = open(f"{pk}/oxygen16.sha256").read().splitlines()
+          out = []
+          for l in lst:
+              m = re.match(r"^([0-9a-f]{64})  (services_patched\.jar|guards\.txt)$", l)
+              out.append(f"{new[m.group(2)]}  {m.group(2)}" if m else l)
+          open(f"{pk}/oxygen16.sha256", "w").write("\n".join(out) + "\n")
+          open(f"{pk}/oxygen16.guards.txt", "w").write(open("dist/oxygen16-x9c.guards.txt").read())
+          rem = open(f"{pk}/remote.txt").read().rstrip("\n").split("\n")
+          siz = open(f"{pk}/sizes.txt").read().rstrip("\n").split("\n")
+          for n, s in new.items():
+              if not any(r.startswith(s + " ") for r in rem):
+                  rem.append(f"{s} gh:Alotananah2/OneOS-Honorx9c:x9c-sets")
+              if not any(r.startswith(s + " ") for r in siz):
+                  siz.append(f"{s} {files[n]}")
+          open(f"{pk}/remote.txt", "w").write("\n".join(rem) + "\n")
+          open(f"{pk}/sizes.txt", "w").write("\n".join(siz) + "\n")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-android/packages
+          git diff --cached --quiet || { git commit -m "oxygen16 set: services_patched.jar and guards.txt from the retrofit run ${GITHUB_RUN_NUMBER}"; git push origin HEAD:x9c-port; }
+      - name: Rebuild the app with the new set
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref x9c-port

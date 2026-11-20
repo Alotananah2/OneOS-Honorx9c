@@ -1,0 +1,27 @@
+# MagicOS 10 IApexService (HONOR X9c BRP-NX1, BRP-N21 10.0.0.168, 2026-11-20): name code signature. Honor inserted installHep (2), getInstalledHepInfo (10) and uninstallHepPackage (11).
+submitStagedSession 1 (Landroid/apex/ApexSessionParams;Landroid/apex/ApexInfoList;)V
+installHep 2 (Ljava/lang/String;)I
+markStagedSessionReady 3 (I)V
+markStagedSessionSuccessful 4 (I)V
+getSessions 5 ()[Landroid/apex/ApexSessionInfo;
+getStagedSessionInfo 6 (I)Landroid/apex/ApexSessionInfo;
+getStagedApexInfos 7 (Landroid/apex/ApexSessionParams;)[Landroid/apex/ApexInfo;
+getActivePackages 8 ()[Landroid/apex/ApexInfo;
+getAllPackages 9 ()[Landroid/apex/ApexInfo;
+getInstalledHepInfo 10 ()[Landroid/apex/HepInfo;
+uninstallHepPackage 11 (Ljava/lang/String;I)I
+abortStagedSession 12 (I)V
+revertActiveSessions 13 ()V
+snapshotCeData 14 (IILjava/lang/String;)V
+restoreCeData 15 (IILjava/lang/String;)V
+destroyDeSnapshots 16 (I)V
+destroyCeSnapshots 17 (II)V
+destroyCeSnapshotsNotSpecified 18 (I[I)V
+unstagePackages 19 (Ljava/util/List;)V
+stagePackages 20 (Ljava/util/List;)V
+resumeRevertIfNeeded 21 ()V
+recollectPreinstalledData 22 ()V
+markBootCompleted 23 ()V
+calculateSizeForCompressedApex 24 (Landroid/apex/CompressedApexInfoList;)J
+reserveSpaceForCompressedApex 25 (Landroid/apex/CompressedApexInfoList;)V
+installAndActivatePackage 26 (Ljava/lang/String;Z)Landroid/apex/ApexInfo;
