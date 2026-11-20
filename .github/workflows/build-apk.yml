@@ -33,5 +33,9 @@ jobs:
           ./gradlew --no-daemon :app:assembleProbeDebug :app:assembleFullDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: oneos-x9c-apks
-          path: app-android/app/build/outputs/apk/**/*.apk
+          name: oneos-probe-apk
+          path: app-android/app/build/outputs/apk/probe/**/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oneos-full-apk
+          path: app-android/app/build/outputs/apk/full/**/*.apk
