@@ -4166,6 +4166,10 @@ echo "Screen recording: $([ -f "$STAGE/data/oneos_record" ] && echo on || echo o
 # rejects frames in the first 30 s, and the switch's watcher later in the
 # session. ONEOS_GUEST_HWC=0|1 overrides the default.
 HWC_DEF=1
+# X9c port: MagicOS's older Qualcomm composer (vendor API 31, HIDL) drew the guest's boot
+# animation as one shifted, zoomed quarter of the frame with overlays on (11-20 20:46):
+# GPU composition by default on Honor hosts.
+[ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ] && HWC_DEF=0
 if [ "${ONEOS_GUEST_HWC:-$HWC_DEF}" = 1 ]; then touch "$STAGE/data/oneos_hwc"; else rm -f "$STAGE/data/oneos_hwc"; fi
 rm -f "$STAGE/data/oneos_hwc_forced"
 echo "Guest HW overlays: $([ -f "$STAGE/data/oneos_hwc" ] && echo 'on (GPU composition forced only if the composer rejects frames)' || echo 'off (GPU composition)')"
