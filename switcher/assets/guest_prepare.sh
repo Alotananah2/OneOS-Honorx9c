@@ -3269,6 +3269,24 @@ if [ "${ONEOS_GUEST_APP:-1}" = 1 ]; then
         echo "No guest OneOS APK: Volume Up + Volume Down still return"
     fi
 fi
+# X9c port: no Wi-Fi in the guest for now. Its WifiService found no Wi-Fi resources APK
+# (WifiContext: resolveInfos for SERVICE_WIFI_RESOURCES_APK: []) and system_server died at
+# boot (session 11-20 22:33). The wifi features are taken out of the permission files the
+# guest reads (copies bound over them), so SystemServer starts no Wi-Fi service; mobile data
+# and the rest stay. ONEOS_GUEST_X9C_NO_WIFI=0 keeps them.
+if [ "${ONEOS_GUEST_X9C_NO_WIFI:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+    mkdir -p "$STAGE/nowifi"
+    n=0
+    for f in $(grep -l 'android.hardware.wifi' "$ROOTFS"/vendor/etc/permissions/*.xml "$ROOTFS"/odm/etc/permissions/*.xml \
+            "$ROOTFS"/system/etc/permissions/*.xml "$ROOTFS"/product/etc/permissions/*.xml "$ROOTFS"/system_ext/etc/permissions/*.xml \
+            "$ROOTFS"/my_*/etc/permissions/*.xml 2>/dev/null); do
+        n=$((n + 1))
+        c="$STAGE/nowifi/$n.xml"
+        grep -v 'android.hardware.wifi' "$f" > "$c" && chmod 644 "$c" &&
+            $BB chcon u:object_r:system_file:s0 "$c" 2>/dev/null
+        $BB mount --bind "$c" "$f" && echo "Wi-Fi features hidden from the guest: ${f#$ROOTFS}"
+    done
+fi
 # MURDHIIAS (X9c port): the rocket boot animation. In the guest's /oem/media (AOSP's
 # bootanimation reads it), and bound over every bootanimation*.zip of the image's media
 # folders, which bootanimation reads before /oem (product's, OPPO's my_* ones).

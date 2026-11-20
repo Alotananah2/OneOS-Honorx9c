@@ -966,16 +966,13 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
-# X9c port: MagicOS names its Qualcomm composer something else (display-hal-1-2 and the like, a
-# HIDL composer): the running init service whose pid is the composer binary's.
+# X9c port: MagicOS names its Qualcomm composer's init service something else, and a user
+# build has no init.svc_debug_pid: the service whose rc file runs a composer binary.
 if [ -z "$COMPOSER_SVC" ]; then
-    cpid=$("$BB" pidof vendor.qti.hardware.display.composer-service 2>/dev/null | cut -d' ' -f1)
-    [ -n "$cpid" ] || cpid=$("$BB" pidof android.hardware.graphics.composer@2.4-service android.hardware.graphics.composer@2.3-service android.hardware.graphics.composer@2.2-service android.hardware.graphics.composer@2.1-service 2>/dev/null | cut -d' ' -f1)
-    if [ -n "$cpid" ]; then
-        for s in $(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p'); do
-            [ "$(getprop init.svc_debug_pid.$s)" = "$cpid" ] && { COMPOSER_SVC=$s; break; }
-        done
-    fi
+    for rc in /vendor/etc/init/*.rc /odm/etc/init/*.rc; do
+        cs=$("$BB" sed -n 's/^service \([^ ]*\) .*\/bin\/hw\/[^ ]*composer[^ ]*.*/\1/p' "$rc" 2>/dev/null | head -n 1)
+        [ -n "$cs" ] && [ -n "$(getprop init.svc.$cs)" ] && { COMPOSER_SVC=$cs; break; }
+    done
 fi
 [ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
 # The Galaxy A36's Qualcomm composer could not start again at the return (0.4.55
