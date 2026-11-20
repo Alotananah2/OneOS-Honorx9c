@@ -1,0 +1,35 @@
+name: MURDHIIAS Launcher
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ x9c-port ]
+    paths: [ 'murdhiias-launcher/**', '.github/workflows/murdhiias-launcher.yml' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          mkdir -p ~/.android && cp .github/keys/debug.keystore ~/.android/debug.keystore
+          gradle --no-daemon -p murdhiias-launcher :app:assembleDebug
+          cp murdhiias-launcher/app/build/outputs/apk/debug/app-debug.apk MURDHIIAS-Launcher.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: murdhiias-launcher
+          name: MURDHIIAS Launcher (latest)
+          prerelease: true
+          make_latest: false
+          files: MURDHIIAS-Launcher.apk
