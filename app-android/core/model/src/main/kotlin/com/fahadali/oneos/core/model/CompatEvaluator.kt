@@ -67,7 +67,13 @@ object CompatEvaluator {
         val set = choice?.let { PackageSets.byId(it.packageSetId, sets) }
 
         // Brand, ABI, model scope (G11 and the owner's target list).
-        if (!f.isSamsung) {
+        if (f.isHonorHost) {
+            out += Finding(
+                "honor-host", Level.WARN, "MagicOS host (experimental port)",
+                "This is the X9c port: OneOS runs next to MagicOS instead of One UI. Nothing here has been tested yet.",
+            )
+        }
+        if (!f.isSupportedHost) {
             out += Finding(
                 "not-samsung", Level.BLOCK, "Not a Samsung phone",
                 "OneOS runs next to One UI, so it needs a Samsung phone " +
@@ -83,7 +89,7 @@ object CompatEvaluator {
                     "'${f.abis64.joinToString().ifEmpty { "none" }}'.",
             )
         }
-        if (f.isSamsung && !inScope(family, profile)) {
+        if (f.isSupportedHost && (if (f.isHonorHost) profile == null else !inScope(family, profile))) {
             val extra = profiles.filter { !ModelFamily.of(it.modelPrefix).inScope }
             out += Finding(
                 ID_OUT_OF_SCOPE, Level.BLOCK, "Not a supported model",

@@ -58,11 +58,19 @@ data class DeviceFacts(
     val vendorModel: String = "",
 ) {
     /** A custom ROM ([CustomRomRule]): no switching, no reports. Null on stock One UI. */
-    val customRom: Finding? get() = CustomRomRule.check(CustomRomRule.Signals(model, bootloader, vendorModel, oneUiRaw))
+    val customRom: Finding? get() = if (isHonorHost) null else CustomRomRule.check(CustomRomRule.Signals(model, bootloader, vendorModel, oneUiRaw))
     val oneUi: OneUiVersion? get() = OneUiVersion.parse(oneUiRaw)
     val family: ModelFamily get() = ModelFamily.of(model)
     val rootKind: RootKind get() = RootRules.kind(root)
     val isSamsung: Boolean
         get() = brand.equals("samsung", ignoreCase = true) ||
             manufacturer.equals("samsung", ignoreCase = true)
+
+    /** X9c port: an Honor phone on MagicOS as the host (experimental, [Profiles.HONOR_X9C]). */
+    val isHonorHost: Boolean
+        get() = brand.equals("honor", ignoreCase = true) ||
+            manufacturer.equals("honor", ignoreCase = true)
+
+    /** A host OneOS can run next to: One UI, or (X9c port) MagicOS. */
+    val isSupportedHost: Boolean get() = isSamsung || isHonorHost
 }

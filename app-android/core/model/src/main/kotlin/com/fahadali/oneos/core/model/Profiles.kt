@@ -82,6 +82,7 @@ object Profiles {
     const val ID_S_ULTRA_8850 = "s-ultra-8850"
     const val ID_S_ULTRA_8750 = "s-ultra-8750"
     const val ID_S_8750 = "s-8750"
+    const val ID_HONOR_X9C = "honor-x9c"
     const val ID_FOLD7 = "f7"
     const val ID_S_PLUS_8750 = "s-plus-8750"
     const val ID_FOLD8 = "f8"
@@ -1326,8 +1327,25 @@ object Profiles {
         notes = listOf(EXYNOS, olderVendor("202404 (Android 15)", "6.6")),
     )
 
+    /**
+     * X9c port (Alotananah2/OneOS): HONOR X9c, BRP-NX1, HNBRP-Q1, Snapdragon 6 Gen 1 (SM6450, parrot),
+     * MagicOS 10 / Android 16 (SDK 36), vendor API 31, kernel 5.10, gatekeeper 1.0 and no weaver,
+     * persist.sys.usb.config "hisuite,mtp,mass_storage,adb". Bootloader locked; root is KernelSU
+     * (lost on restart). Only SDK 36 systems fit: OxygenOS 16 first. Untested.
+     */
+    val HONOR_X9C = PhoneProfile(
+        id = ID_HONOR_X9C,
+        label = "HONOR X9c",
+        modelPrefix = "BRP-",
+        codename = "HNBRP-Q1",
+        socModel = "SM6450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(olderVendor("31 (Android 12)", "5.10")),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
-        F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
+        HONOR_X9C, F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
