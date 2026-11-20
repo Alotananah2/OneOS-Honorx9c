@@ -28,6 +28,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build debug APKs (OneOS + OneOS Probe)
         run: |
+          # One fixed debug key (.github/keys) so every build updates the installed app in place.
+          mkdir -p ~/.android && cp ../.github/keys/debug.keystore ~/.android/debug.keystore
           chmod +x gradlew ../scripts/build-guest-manager.sh
           ../scripts/build-guest-manager.sh --debug
           ./gradlew --no-daemon :app:assembleProbeDebug :app:assembleFullDebug

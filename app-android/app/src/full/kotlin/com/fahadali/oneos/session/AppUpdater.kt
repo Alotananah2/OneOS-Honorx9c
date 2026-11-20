@@ -33,6 +33,8 @@ import java.net.URL
  * setting up and switching still need root.
  */
 object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
+    private const val X9C_PORT = true
+
     enum class Phase { IDLE, CHECKING, CURRENT, AVAILABLE, DOWNLOADING, INSTALLING, CONFIRM, FAILED }
 
     data class State(
@@ -85,6 +87,9 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
 
     /** Reads update.json unless it was read in the last hours ([force]: now). */
     fun check(ctx: Context, force: Boolean = false) {
+        // X9c port: never offer upstream's OneOS as an update (it would replace the port and has
+        // no X9c support); the port's builds come from Alotananah2/OneOS-Honorx9c's x9c-latest release.
+        if (X9C_PORT) { if (state.phase != Phase.CURRENT) update(State(Phase.CURRENT)); return }
         if (state.busy) return
         val app = ctx.applicationContext
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
