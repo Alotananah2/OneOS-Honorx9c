@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: read
     env:
       GH_PACKAGES_USER: ${{ github.actor }}
@@ -39,3 +39,13 @@ jobs:
         with:
           name: oneos-full-apk
           path: app-android/app/build/outputs/apk/full/**/*.apk
+      - name: Publish as the x9c-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: x9c-latest
+          name: OneOS X9c port (latest build)
+          prerelease: true
+          make_latest: false
+          files: |
+            app-android/app/build/outputs/apk/probe/debug/*.apk
+            app-android/app/build/outputs/apk/full/debug/*.apk
