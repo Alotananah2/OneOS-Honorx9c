@@ -3888,7 +3888,14 @@ if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
         i=0; while [ \$i -lt 100 ]; do i=\$((i + 1)); logcat -b all -d -v threadtime -t 4000 > '$STAGE/host_tail.log.tmp' 2>/dev/null && mv -f '$STAGE/host_tail.log.tmp' '$STAGE/host_tail.log'; $BB dmesg 2>/dev/null | tail -n 1500 > '$STAGE/kmsg_tail.log'; sync; sleep 15; done
     " </dev/null >/dev/null 2>&1 &
-    echo "Reboot trace: on (X9c port; $RT, host_tail.log, kmsg_tail.log)"
+    # The whole log of the session's first 10 minutes (the guest's boot included), rotated
+    # files of 8 MB on the stage: the rolling tails lost the guest's PackageManager scan.
+    rm -f "$STAGE"/session_full.log*
+    $BB sh -c "
+        echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
+        timeout 600 logcat -b all -v threadtime -T 1 -f '$STAGE/session_full.log' -r 8192 -n 6 2>/dev/null
+    " </dev/null >/dev/null 2>&1 &
+    echo "Reboot trace: on (X9c port; $RT, host_tail.log, kmsg_tail.log, session_full.log*)"
 fi
 
 # Heat cap (S25 Ultra af6c2b17; owner 2026-10-27: cap only when hot). One UI's
