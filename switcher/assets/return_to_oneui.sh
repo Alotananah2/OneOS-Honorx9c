@@ -1032,7 +1032,13 @@ setprop ctl.start audioserver
 # X9c port: MagicOS's audioserver did not register within 20 s at the in-place return
 # (11-20 23:25:49, a failsafe reboot). Once more with the audio HAL and audioserver
 # restarted, waiting longer, before giving up.
-if ! wait_found media.audio_policy 20; then
+if ! wait_found media.audio_policy 20 && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+    # X9c port: MagicOS's audioserver waits for android.frameworks.sensorservice@1.0::ISensorManager,
+    # which only system_server brings (audio_fail.log, 11-21 12:32: 'Waited one second for
+    # activity' for a minute, the sensor service's lazy start failing): it registers once
+    # One UI's framework is up, so the return goes on.
+    say "audio: media.audio_policy not registered after 20 s; MagicOS's audioserver waits for system_server's sensor service - going on"
+elif ! wait_found media.audio_policy 1; then
     say "audio: media.audio_policy not registered after 20 s; restarting audioserver${AHAL:+ and $AHAL} once more"
     setprop ctl.stop audioserver
     for s in $AHAL; do setprop ctl.restart $s; done
@@ -1077,7 +1083,10 @@ if [ -n "$GUEST_DEV" ]; then
     done
 fi
 [ $g = 0 ] || failsafe "$g guest processes still running"
-for name in vold SurfaceFlinger media.audio_policy media.audio_flinger installd; do
+GATE_B="vold SurfaceFlinger media.audio_policy media.audio_flinger installd"
+# X9c port: MagicOS's audioserver registers only after system_server's sensor service (above).
+[ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ] && GATE_B="vold SurfaceFlinger installd"
+for name in $GATE_B; do
     wait_found "$name" 5 || failsafe "$name is not registered"
 done
 for svc in vold keystore2 servicemanager hwservicemanager logd lmkd installd; do
