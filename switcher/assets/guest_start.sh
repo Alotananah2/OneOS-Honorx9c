@@ -3090,7 +3090,15 @@ sm_diag() {
         dmesg 2>/dev/null | grep -iE 'servicemanager|avc:|selinux|security_compute|context' | tail -n 40 | cut -c1-300
     } >> /data/oneos_sm_diag.log 2>&1
 }
+# X9c port: servicemanager follows /sys/fs/selinux/status, not
+# /sys/fs/selinux/enforce; resync it if they disagree (oneos_switch.sh says why).
+if [ "$(cat /sys/fs/selinux/enforce 2>/dev/null)" = 0 ] &&
+   [ "$(od -A n -t u4 -j 8 -N 4 /sys/fs/selinux/status 2>/dev/null | tr -d ' ')" = 1 ]; then
+    { echo 1 > /sys/fs/selinux/enforce; echo 0 > /sys/fs/selinux/enforce; } 2>/dev/null
+    echo "[Pivoted Root] SELinux status page resynced to permissive for servicemanager"
+fi
 sm_diag "before zygote"
+echo "status page enforcing=$(od -A n -t u4 -j 8 -N 4 /sys/fs/selinux/status 2>/dev/null | tr -d ' ')" >> /data/oneos_sm_diag.log
 ( sleep 45; sm_diag "45 s after zygote" ) &
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then

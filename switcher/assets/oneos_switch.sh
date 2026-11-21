@@ -1035,6 +1035,18 @@ fi
 # keeps the rest of the guest boot from tripping over labels we cannot predict.
 # return_to_oneui.sh restores enforcing.
 setenforce 0 2>/dev/null || true
+# X9c port: an exploit-rooted kernel (temporary KernelSU) can have enforcing 0
+# in the kernel while /sys/fs/selinux/status - the page servicemanager's
+# userspace AVC reads - still says 1: writing 0 again is a no-op, so
+# servicemanager keeps refusing default_android_service names ("SELinux denied
+# for service", avc ... permissive=0) and the guest system_server dies in
+# BatteryStatsServiceExtImpl.init. Toggle 1 -> 0 in this shell (no exec in
+# between) so the kernel republishes the status page.
+st_enf=$(od -A n -t u4 -j 8 -N 4 /sys/fs/selinux/status 2>/dev/null | tr -d ' ')
+if [ "$(cat /sys/fs/selinux/enforce 2>/dev/null)" = 0 ] && [ "$st_enf" = 1 ]; then
+    { echo 1 > /sys/fs/selinux/enforce; echo 0 > /sys/fs/selinux/enforce; } 2>/dev/null
+    echo "SELinux status page said enforcing while the kernel is permissive; resynced: status enforcing=$(od -A n -t u4 -j 8 -N 4 /sys/fs/selinux/status 2>/dev/null | tr -d ' ')"
+fi
 echo "preflight: logs and watches done $(date +%T)"
 echo "SELinux mode: $(getenforce 2>/dev/null || echo unknown)"
 oneos_boot_begin enter

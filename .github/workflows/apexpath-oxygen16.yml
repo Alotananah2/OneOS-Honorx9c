@@ -1,0 +1,102 @@
+name: OxygenOS 16 services.jar - canonical APEX paths (X9c)
+
+# MagicOS keeps com.android.wifi in /product/apex; in the guest /product links to
+# /system/product, so PackageManager skipped that APEX (no Wi-Fi resources APK, WifiService
+# crash). patches/guest_apex_canonical_path.py canonicalizes ActiveApexInfo.preInstalledApexPath
+# in the oxygen16 set's services_patched.jar; this publishes it in x9c-sets, updates the set
+# and starts the APK build.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ x9c-port ]
+    paths: [ '.github/workflows/apexpath-oxygen16.yml', 'switcher/patches/guest_apex_canonical_path.py' ]
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Fetch the current services_patched.jar and apktool
+        run: |
+          set -eu
+          pk=app-android/packages
+          S=$(awk '$2 == "services_patched.jar" { print $1 }' $pk/oxygen16.sha256 | tail -1)
+          echo "S=$S" >> $GITHUB_ENV
+          curl -fsSL -o in.jar "https://github.com/${GITHUB_REPOSITORY}/releases/download/x9c-sets/$S"
+          echo "$S  in.jar" | sha256sum -c
+          url=$(curl -fsSL https://api.github.com/repos/iBotPeaches/Apktool/releases/latest | python3 -c 'import json,sys; print([a["browser_download_url"] for a in json.load(sys.stdin)["assets"] if a["name"].endswith(".jar")][0])')
+          curl -fsSL -o apktool.jar "$url"
+      - name: Patch
+        run: |
+          set -eu
+          W=$(mktemp -d)
+          java -Xmx6g -jar apktool.jar d -q -f -r -o $W/s in.jar
+          DIRS=$(python3 -I switcher/patches/guest_apex_canonical_path.py $W/s)
+          echo "changed: $DIRS"
+          java -Xmx6g -jar apktool.jar b -q -o $W/rebuilt.jar $W/s
+          cp in.jar out.jar
+          for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf $W/dex && mkdir -p $W/dex
+            unzip -q -o $W/rebuilt.jar "$DEX" -d $W/dex
+            (cd $W/dex && zip -q -0 "$GITHUB_WORKSPACE/out.jar" "$DEX")
+            echo "replaced $DEX"
+          done
+          python3 -I scripts/dex-container-fix.py in.jar $W/rebuilt.jar out.jar
+          sha256sum in.jar out.jar
+      - name: Set files
+        run: |
+          set -eu
+          pk=app-android/packages
+          N=$(sha256sum out.jar | cut -d' ' -f1)
+          MARK="# X9c port: canonical preInstalledApexPath in services_patched.jar (patches/guest_apex_canonical_path.py; MagicOS's /product/apex Wi-Fi APEX)"
+          grep -vxF "$MARK" $pk/oxygen16.guards.txt | awk -v mark="$MARK" -v old="$S" -v new="$N" 'NR == 1 { print; print mark; next }
+              $1 == old && $2 == "services_patched.jar" { print new "  services_patched.jar"; next } { print }' > guards.txt
+          grep -q "^$N  services_patched.jar$" guards.txt
+          G=$(sha256sum guards.txt | cut -d' ' -f1)
+          mkdir -p dist && cp out.jar dist/$N && cp guards.txt dist/$G
+          python3 - "$S" "$N" "$G" "$(stat -c %s out.jar)" "$(stat -c %s guards.txt)" <<'PY'
+          import re, sys
+          S, N, G, ns, gs = sys.argv[1:6]
+          pk = "app-android/packages"
+          out = []
+          for l in open(f"{pk}/oxygen16.sha256").read().splitlines():
+              if l == f"{S}  services_patched.jar":
+                  l = f"{N}  services_patched.jar"
+              elif re.match(r"^[0-9a-f]{64}  guards\.txt$", l):
+                  l = f"{G}  guards.txt"
+              out.append(l)
+          open(f"{pk}/oxygen16.sha256", "w").write("\n".join(out) + "\n")
+          open(f"{pk}/oxygen16.guards.txt", "w").write(open("guards.txt").read())
+          for name, rows in (("remote.txt", [(N, "gh:Alotananah2/OneOS-Honorx9c:x9c-sets"), (G, "gh:Alotananah2/OneOS-Honorx9c:x9c-sets")]),
+                             ("sizes.txt", [(N, ns), (G, gs)])):
+              cur = open(f"{pk}/{name}").read().rstrip("\n").split("\n")
+              for h, v in rows:
+                  if not any(c.startswith(h + " ") for c in cur):
+                      cur.append(f"{h} {v}")
+              open(f"{pk}/{name}", "w").write("\n".join(cur) + "\n")
+          PY
+          git diff --stat
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: x9c-sets
+          name: OneOS X9c port set files
+          prerelease: true
+          make_latest: false
+          files: dist/*
+      - name: Commit and rebuild the app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-android/packages
+          git diff --cached --quiet || { git commit -m "oxygen16 set: services_patched.jar with canonical APEX paths, run ${GITHUB_RUN_NUMBER}"; git pull --rebase origin x9c-port; git push origin HEAD:x9c-port; }
+          gh workflow run build-apk.yml --ref x9c-port
