@@ -3895,6 +3895,8 @@ if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
         timeout 1500 $BB dmesg -w 2>/dev/null | grep --line-buffered -iE 'reboot|restart|shutdown|watchdog|wdog|hung|panic|oom|zrhung|bug:' | sed 's/^/kmsg /' >> '$RT'
     " </dev/null >/dev/null 2>&1 &
+    # Heavy logging (full log, tails every 15 s with sync) only with $STAGE/x9c_debug: it slows the guest.
+    if [ -f "$STAGE/x9c_debug" ]; then
     # Plus a full snapshot of the last 2 minutes of host logs every 30 s, the newest kept.
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
@@ -3907,6 +3909,7 @@ if [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
         timeout 600 logcat -b all -v threadtime -T 1 -f '$STAGE/session_full.log' -r 8192 -n 6 2>/dev/null
     " </dev/null >/dev/null 2>&1 &
+    fi
     echo "Reboot trace: on (X9c port; $RT, host_tail.log, kmsg_tail.log, session_full.log*)"
 fi
 
