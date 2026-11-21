@@ -229,6 +229,15 @@ echo "service_contexts catch-all lines in One UI's plat_service_contexts: $(grep
 
 echo "=== [1/4] $(date +%T) Terminating Container Supervision & Zygote ==="
 # X9c port: the hungtask feeder (oneos_switch.sh) stops 2 min from now, MagicOS kicking again by then.
+if [ -f "$S/x9c_wfd.was" ]; then
+    for rp in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop; do
+        [ -x "$rp" ] || continue
+        w=$(cat "$S/x9c_wfd.was")
+        if [ -n "$w" ]; then "$rp" -n persist.debug.wfd.enable "$w"; else "$rp" -d persist.debug.wfd.enable; fi
+        break
+    done
+    rm -f "$S/x9c_wfd.was"
+fi
 { [ -w /sys/kernel/hungtask/vm_heart ] || [ -e /proc/hangdetect/userpet_disable ]; } && echo $(( $(date +%s) + 120 )) > "$S/hungtask_stop_at" 2>/dev/null
 # A screen recording (guest_start.sh) is finalised on SIGINT; SIGKILL would
 # leave an unplayable segment. Nothing on the host is called screenrecord.
@@ -1029,7 +1038,12 @@ if ! wait_found media.audio_policy 20; then
     for s in $AHAL; do setprop ctl.restart $s; done
     sleep 2
     setprop ctl.start audioserver
-    wait_found media.audio_policy 45 || failsafe "One UI's audioserver did not register"
+    if ! wait_found media.audio_policy 45; then
+        logcat -b all -d -t 6000 -v threadtime > "$S/audio_fail.log" 2>&1
+        { getprop | "$BB" grep -iE 'audio|init.svc' ; ps -A -o PID,NAME | "$BB" grep -iE 'audio|media'; } > "$S/audio_fail_state.txt" 2>&1
+        sync
+        failsafe "One UI's audioserver did not register"
+    fi
 fi
 # The camera HALs first (0.4.38): the guest's Samsung Camera drove them for the
 # whole session and the camera worker set their fold posture; One UI's camera

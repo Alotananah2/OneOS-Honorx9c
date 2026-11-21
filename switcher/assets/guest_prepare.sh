@@ -3286,6 +3286,15 @@ if [ "${ONEOS_GUEST_X9C_NO_WIFI:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr
             $BB chcon u:object_r:system_file:s0 "$c" 2>/dev/null
         $BB mount --bind "$c" "$f" && echo "Wi-Fi features hidden from the guest: ${f#$ROOTFS}"
     done
+    # Without Wi-Fi Direct the guest's DisplayManagerService died registering its Wi-Fi
+    # display adapter (11-20 23:23, 23:44): Wi-Fi display off, memory only (resetprop -n),
+    # the host's value back at the return (return_to_oneui.sh, $STAGE/x9c_wfd.was).
+    for rp in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop; do
+        [ -x "$rp" ] || continue
+        [ -f "$STAGE/x9c_wfd.was" ] || echo "$(getprop persist.debug.wfd.enable)" > "$STAGE/x9c_wfd.was"
+        "$rp" -n persist.debug.wfd.enable 0 && echo "Wi-Fi display off for the guest (persist.debug.wfd.enable 0, was '$(cat "$STAGE/x9c_wfd.was")')"
+        break
+    done
 fi
 # MURDHIIAS (X9c port): the rocket boot animation. In the guest's /oem/media (AOSP's
 # bootanimation reads it), and bound over every bootanimation*.zip of the image's media
