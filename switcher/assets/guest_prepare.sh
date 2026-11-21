@@ -370,6 +370,49 @@ fi
 
 $BB mount --make-rprivate "$ROOTFS" 2>/dev/null || true
 
+# X9c port: the host's APEX files where the guest's PackageManager looks for them. The guest's
+# ApexManager gets the host apexd's list (modulePath per module, e.g. MagicOS's
+# /product/apex/com.android.wifi.apex) and parses each file; one missing in the image (the
+# OxygenOS image's /product is /system/product, which has no apex folder) is skipped with its
+# apps, so the wifi APEX's ServiceWifiResources* was never scanned and the guest's WifiService
+# died (11-20 22:33) and OPPO's wifi code after it (11-21 12:30). For each non-/data module
+# path missing in the image, a copy of the host's file in an overlay of its nearest existing
+# folder (upper layer in $STAGE/apexfix). Honor hosts; ONEOS_GUEST_APEX_PATHS=0 skips it.
+if [ "${ONEOS_GUEST_APEX_PATHS:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ] && [ -f /apex/apex-info-list.xml ]; then
+    gpath() {  # the guest path of $1 with the image's own symlinks (absolute ones inside $ROOTFS)
+        out=""; rest=${1#/}
+        while [ -n "$rest" ]; do
+            c=${rest%%/*}; [ "$c" = "$rest" ] && rest="" || rest=${rest#*/}
+            if [ -L "$ROOTFS$out/$c" ]; then
+                t=$(readlink "$ROOTFS$out/$c")
+                case "$t" in /*) out=${t%/} ;; *) out="$out/$t" ;; esac
+            else
+                out="$out/$c"
+            fi
+        done
+        echo "$out"
+    }
+    for hp in $(tr ' ' '\n' < /apex/apex-info-list.xml | $BB sed -n 's/^modulePath="\(.*\)"$/\1/p' | sort -u); do
+        case "$hp" in /data/*) continue ;; esac
+        gp=$(gpath "$hp")
+        [ -e "$ROOTFS$gp" ] && continue
+        [ -f "$hp" ] || continue
+        a=$(dirname "$gp")
+        while [ ! -d "$ROOTFS$a" ] && [ "$a" != / ]; do a=$(dirname "$a"); done
+        [ "$a" = / ] && continue
+        key=$(echo "$a" | tr / _)
+        up="$STAGE/apexfix/up$key"; wk="$STAGE/apexfix/wk$key"
+        if ! mount | grep -q " $ROOTFS$a type overlay"; then
+            rm -rf "$up" "$wk"; mkdir -p "$up" "$wk"
+            $BB mount -t overlay overlay -o "lowerdir=$ROOTFS$a,upperdir=$up,workdir=$wk" "$ROOTFS$a" ||
+                { echo "APEX paths: no overlay on $a"; continue; }
+        fi
+        mkdir -p "$ROOTFS$(dirname "$gp")" && cp "$hp" "$ROOTFS$gp" &&
+            chmod 644 "$ROOTFS$gp" && $BB chcon u:object_r:system_file:s0 "$ROOTFS$(dirname "$gp")" "$ROOTFS$gp" 2>/dev/null
+        [ -f "$ROOTFS$gp" ] && echo "APEX paths: host $hp at the guest's $gp (overlay on $a)"
+    done
+fi
+
 if ! mount | grep -q "$ROOTFS/dev "; then
     $BB mount --rbind /dev "$ROOTFS/dev"
     $BB mount --make-rprivate "$ROOTFS/dev"
@@ -3274,11 +3317,11 @@ fi
 # boot (session 11-20 22:33). The wifi features are taken out of the permission files the
 # guest reads (copies bound over them), so SystemServer starts no Wi-Fi service; mobile data
 # and the rest stay. ONEOS_GUEST_X9C_NO_WIFI=0 keeps them.
-if [ "${ONEOS_GUEST_X9C_NO_WIFI:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+if [ "${ONEOS_GUEST_X9C_NO_WIFI:-0}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
     mkdir -p "$STAGE/nowifi"
     n=0
     for f in $(grep -l 'android.hardware.wifi' "$ROOTFS"/vendor/etc/permissions/*.xml "$ROOTFS"/odm/etc/permissions/*.xml \
-            "$ROOTFS"/system/etc/permissions/*.xml "$ROOTFS"/product/etc/permissions/*.xml "$ROOTFS"/system_ext/etc/permissions/*.xml \
+            "$ROOTFS"/system/etc/permissions/*.xml "$ROOTFS"/system/product/etc/permissions/*.xml "$ROOTFS"/system/system_ext/etc/permissions/*.xml \
             "$ROOTFS"/my_*/etc/permissions/*.xml 2>/dev/null); do
         n=$((n + 1))
         c="$STAGE/nowifi/$n.xml"
@@ -3304,7 +3347,7 @@ if [ "${ONEOS_GUEST_MURDHIIAS_BOOTANIM:-1}" = 1 ] && [ -s "$STAGE/murdhiias_boot
     mkdir -p "$STAGE/oem/media" && cp "$STAGE/murdhiias_bootanimation.zip" "$STAGE/oem/media/bootanimation.zip" &&
         chmod 755 "$STAGE/oem" "$STAGE/oem/media" && chmod 644 "$STAGE/oem/media/bootanimation.zip" &&
         OEM_FILES="$OEM_FILES media/bootanimation.zip"
-    for f in $(find "$ROOTFS/product/media" "$ROOTFS/system/media" "$ROOTFS/system_ext/media" "$ROOTFS"/my_*/media -maxdepth 3 -name 'bootanimation*.zip' 2>/dev/null); do
+    for f in $(find "$ROOTFS/system/product/media" "$ROOTFS/system/media" "$ROOTFS/system/system_ext/media" "$ROOTFS"/my_*/media -maxdepth 3 -name 'bootanimation*.zip' 2>/dev/null); do
         $BB mount --bind "$STAGE/murdhiias_bootanimation.zip" "$f" 2>/dev/null &&
             echo "MURDHIIAS boot animation bound over ${f#$ROOTFS}"
     done

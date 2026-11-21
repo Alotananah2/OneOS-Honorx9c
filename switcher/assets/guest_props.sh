@@ -548,7 +548,7 @@ add)
     # X9c port: with the Wi-Fi features hidden (guest_prepare.sh, ONEOS_GUEST_X9C_NO_WIFI) the
     # guest's DisplayManagerService died registering its Wi-Fi display adapter ("WiFi display
     # was requested, but there is no WiFi Direct feature", 11-20 23:23): off for the session.
-    if [ "${ONEOS_GUEST_X9C_NO_WIFI:-1}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
+    if [ "${ONEOS_GUEST_X9C_NO_WIFI:-0}" = 1 ] && [ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ]; then
         WFK=persist.debug.wfd.enable
         wfv=$(getprop "$WFK")
         if "$RP" -n "$WFK" 0 2>/dev/null; then
