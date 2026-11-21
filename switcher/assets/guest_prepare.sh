@@ -4196,7 +4196,9 @@ HWC_DEF=1
 # X9c port: MagicOS's older Qualcomm composer (vendor API 31, HIDL) drew the guest's boot
 # animation as one shifted, zoomed quarter of the frame with overlays on (11-20 20:46):
 # GPU composition by default on Honor hosts.
-[ "$(getprop ro.product.brand | tr A-Z a-z)" = honor ] && HWC_DEF=0
+# 11-21: the boot animation stayed shifted with GPU composition too; the composer restart was
+# the fix and GPU composition costs speed and heat, so overlays are back on (guest_start.sh
+# still falls back to GPU if the composer rejects frames).
 if [ "${ONEOS_GUEST_HWC:-$HWC_DEF}" = 1 ]; then touch "$STAGE/data/oneos_hwc"; else rm -f "$STAGE/data/oneos_hwc"; fi
 rm -f "$STAGE/data/oneos_hwc_forced"
 echo "Guest HW overlays: $([ -f "$STAGE/data/oneos_hwc" ] && echo 'on (GPU composition forced only if the composer rejects frames)' || echo 'off (GPU composition)')"

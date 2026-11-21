@@ -3986,6 +3986,18 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
         P=\$(pidof system_server | awk '{print \$1}')
         sk=''
         [ -n \"\$P\" ] && sk=\$(timeout 10 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null | sed -n '/^Current temperatures from HAL/,/^[^[:space:]]/p' | sed -n 's/.*mValue=\([-0-9.]*\), mType=[0-9]*, mName=SKIN,.*/\1/p' | head -n 1)
+        # X9c port: the guest's thermal HAL reports no SKIN on MagicOS's vendor: read the
+        # host's own skin/board sensors (millidegrees), else the battery (decidegrees).
+        if [ -z \"\$sk\" ]; then
+            m=0
+            for z in /sys/class/thermal/thermal_zone*; do
+                case \"\$(cat \$z/type 2>/dev/null)\" in *[Ss]kin*|*shell*|*quiet*|xo-therm*|sys-therm*|*board*) ;; *) continue ;; esac
+                t=\$(cat \$z/temp 2>/dev/null); case \"\$t\" in ''|*[!0-9]*) continue ;; esac
+                [ \$t -gt 1000 ] && t=\$((t / 1000)); [ \$t -gt \$m ] && [ \$t -lt 120 ] && m=\$t
+            done
+            if [ \$m = 0 ]; then t=\$(cat /sys/class/power_supply/battery/temp 2>/dev/null); case \"\$t\" in ''|*[!0-9]*) ;; *) m=\$((t / 10)) ;; esac; fi
+            [ \$m -gt 0 ] && sk=\$m
+        fi
         if [ -n \"\$sk\" ] && [ $GUEST_THERMAL_MAP = 1 ]; then
             [ \"\$P\" = \"\$lp\" ] || tl=-1
             lp=\$P
